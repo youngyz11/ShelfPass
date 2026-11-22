@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/db/prisma"
 import { checkMonthlyQuota } from "@/lib/quota"
+import { createLlmClient, llmExtraBody } from "@/lib/ai-config"
 
 function generateMockSuggestions(productName: string) {
   return {
@@ -64,36 +65,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "产品名称不能为空" }, { status: 400 })
     }
 
-    // Resolve API key
-    let apiKey = process.env.DEEPSEEK_API_KEY
-    if (!apiKey) {
-      const user = await prisma.user.findUnique({
+    // 密钥解析：环境变量优先，其次用户自带
+    let userApiKey: string | null = null
+    if (!process.env.LLM_API_KEY && !process.env.DEEPSEEK_API_KEY) {
+      const u = await prisma.user.findUnique({
         where: { id: session.user.id },
         select: { apiKey: true },
       })
-      if (user?.apiKey) {
-        apiKey = user.apiKey
-      }
+      userApiKey = u?.apiKey ?? null
     }
+    const llm = await createLlmClient(userApiKey)
 
-    if (apiKey) {
+    if (llm) {
       try {
-        const { default: OpenAI } = await import("openai")
-        const openai = new OpenAI({
-          apiKey,
-          baseURL: "https://api.deepseek.com",
-        })
+        const { system, user: userMessage } = suggestionPrompt(productName)
 
-        const { system, user } = suggestionPrompt(productName)
-
-        const response = await openai.chat.completions.create({
-          model: "deepseek-chat",
+        const response = await (llm.client.chat.completions.create as any)({
+          model: llm.cfg.model,
           messages: [
             { role: "system", content: system },
-            { role: "user", content: user },
+            { role: "user", content: userMessage },
           ],
           temperature: 0.7,
           max_tokens: 1000,
+          ...llmExtraBody(llm.cfg),
         })
 
         const text = response.choices[0]?.message?.content || ""

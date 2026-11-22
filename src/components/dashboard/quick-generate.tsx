@@ -1,8 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Sparkles, ArrowRight, Check, Copy, Download, Star } from "lucide-react"
+import {
+  Loader2,
+  Sparkles,
+  ArrowRight,
+  Check,
+  Copy,
+  Download,
+  Star,
+  ImagePlus,
+  X,
+} from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,6 +28,8 @@ import {
 import { toast } from "sonner"
 import { platformLabels, languageLabels, contentTypeLabels, downloadTextFile } from "@/types"
 import Link from "next/link"
+
+const IMAGE_TYPES = ["mainImage", "sceneImage", "banner", "socialMediaImage", "promoPoster"]
 
 type ContentTypeOption = {
   key: string
@@ -52,6 +64,11 @@ export function QuickGenerate({
   const [language, setLanguage] = useState("zh")
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set(defaultContentTypes))
 
+  // 产品参考图：用户自己传的实拍图，有它就以它为锚点派生
+  const [refs, setRefs] = useState<{ url: string; name: string }[]>([])
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   // Generation state
   const [generating, setGenerating] = useState(false)
   const [results, setResults] = useState<Array<{
@@ -64,6 +81,7 @@ export function QuickGenerate({
   }> | null>(null)
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [imageErrors, setImageErrors] = useState<Record<string, string>>({})
 
   function toggleType(key: string) {
     setSelectedTypes((prev) => {
@@ -72,6 +90,38 @@ export function QuickGenerate({
       else next.add(key)
       return next
     })
+  }
+
+  const MAX_REFS = 3
+
+  async function handleFiles(files: FileList | null) {
+    if (!files || files.length === 0) return
+    const room = MAX_REFS - refs.length
+    if (room <= 0) {
+      toast.error(`最多 ${MAX_REFS} 张参考图`)
+      return
+    }
+    const picked = Array.from(files).slice(0, room)
+    if (files.length > room) toast.message(`只取前 ${room} 张`)
+
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      for (const f of picked) fd.append("files", f)
+      const res = await fetch("/api/upload", { method: "POST", body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "上传失败")
+      const added = (data.files || []) as { url: string; name: string }[]
+      setRefs((prev) => [...prev, ...added].slice(0, MAX_REFS))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "上传失败")
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function removeRef(url: string) {
+    setRefs((prev) => prev.filter((r) => r.url !== url))
   }
 
   async function handleGenerate() {
@@ -109,19 +159,49 @@ export function QuickGenerate({
       const newResults: typeof results = []
       const types = Array.from(selectedTypes)
 
-      for (const contentType of types) {
+      // 全是图片类型时走批量接口：一次规划、一套外观事实，否则产品会各画各的
+      const allVisual = types.length > 1 && types.every((t) => IMAGE_TYPES.includes(t))
+
+      if (allVisual) {
         try {
-          const genRes = await fetch("/api/generate", {
+          const genRes = await fetch("/api/generate/images", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ projectId, contentType }),
+            body: JSON.stringify({
+              projectId,
+              contentTypes: types,
+              referenceImages: refs.map((r) => r.url),
+            }),
           })
           const genData = await genRes.json()
-          if (genRes.ok && genData.record) {
-            newResults.push(genData.record)
+          if (!genRes.ok) throw new Error(genData.error || "生成失败")
+          for (const record of genData.records || []) {
+            newResults.push(record)
+            if (record.imageError) {
+              setImageErrors((prev) => ({ ...prev, [record.id]: record.imageError }))
+            }
           }
-        } catch {
-          // continue to next type
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "图片生成失败")
+        }
+      } else {
+        for (const contentType of types) {
+          try {
+            const genRes = await fetch("/api/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ projectId, contentType }),
+            })
+            const genData = await genRes.json()
+            if (genRes.ok && genData.record) {
+              newResults.push(genData.record)
+              if (genData.imageError) {
+                setImageErrors((prev) => ({ ...prev, [genData.record.id]: genData.imageError }))
+              }
+            }
+          } catch {
+            // continue to next type
+          }
         }
       }
 
@@ -174,6 +254,7 @@ export function QuickGenerate({
   }
 
   const isCopyPage = contentTypeOptions[0]?.key === "title"
+  const isImagePage = contentTypeOptions.some((o) => IMAGE_TYPES.includes(o.key))
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
@@ -199,6 +280,73 @@ export function QuickGenerate({
                   className="h-9"
                 />
               </div>
+
+              {isImagePage && (
+                <div className="space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <Label>产品参考图</Label>
+                    <span className="text-[11px] text-muted-foreground">
+                      {refs.length}/{MAX_REFS} · 可选
+                    </span>
+                  </div>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      handleFiles(e.target.files)
+                      e.target.value = ""
+                    }}
+                  />
+
+                  <div className="flex flex-wrap gap-2">
+                    {refs.map((r, i) => (
+                      <div
+                        key={r.url}
+                        className="relative size-16 overflow-hidden rounded-lg border border-border/60 bg-muted/30"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={r.url} alt={r.name} className="size-full object-cover" />
+                        <span className="absolute left-1 top-1 rounded bg-black/55 px-1 text-[10px] leading-4 text-white">
+                          {i === 0 ? "主" : i + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeRef(r.url)}
+                          className="absolute right-0.5 top-0.5 rounded-full bg-black/55 p-0.5 text-white transition-colors hover:bg-black/75"
+                          title="移除"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </div>
+                    ))}
+
+                    {refs.length < MAX_REFS && (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        className="flex size-16 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border/70 text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary disabled:opacity-60"
+                      >
+                        {uploading ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <ImagePlus className="size-4" />
+                        )}
+                        <span className="text-[10px]">{uploading ? "上传中" : "上传"}</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    传了就以你的图为准出图，产品不会跑偏。要求：单产品、清晰、无遮挡、png/jpg/webp 且不超过 10MB。
+                    第一张会先处理成白底主图，其余图从它派生。
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="features">产品特点 / 核心功能</Label>
@@ -440,6 +588,12 @@ export function QuickGenerate({
                             <span className="text-sm text-muted-foreground">(无内容)</span>
                           )}
                         </div>
+
+                        {imageErrors[record.id] && (
+                          <p className="px-3 pb-2 -mt-1 text-xs text-amber-600 dark:text-amber-500">
+                            未生成图片：{imageErrors[record.id]}
+                          </p>
+                        )}
                       </CardContent>
                     </Card>
                   ))}

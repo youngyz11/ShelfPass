@@ -123,6 +123,14 @@ model ProductProject {
 
   // Generation config
   visualStyle           String             @default("minimal")
+
+  /// 视觉事实锚（JSON）：颜色/形态/部件/比例，一次确定后所有图片类型共用，
+  /// 避免同一商品被画出不同外观。见 src/lib/visual-spec.ts
+  visualSpec            String?
+
+  /// 用户上传的产品参考图（JSON 数组，最多 3 张，如 ["/uploads/xxx.png"]）。
+  /// 有值时整组图以它为锚点派生，不再用文生图凭空画产品。
+  referenceImages       String?
   generationIntensity   String             @default("balanced")
 
   createdAt             DateTime           @default(now())

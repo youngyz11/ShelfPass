@@ -3,6 +3,9 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/db/prisma"
 import { rateLimit } from "@/lib/rate-limit"
 import { checkMonthlyQuota } from "@/lib/quota"
+import { createLlmClient, createImageClient, llmExtraBody, imageRequestHeaders } from "@/lib/ai-config"
+import { ensureVisualSpec, visualLockText } from "@/lib/visual-spec"
+import { saveBase64Image, saveRemoteImage } from "@/lib/image-store"
 
 const contentTypeLabels: Record<string, string> = {
   title: "商品标题",
@@ -88,7 +91,8 @@ function buildPrompt(
     visualStyle: string
     generationIntensity: string
   },
-  contentType: string
+  contentType: string,
+  visualLock?: string
 ): { system: string; user: string } {
   const platformGuide = platformGuides[project.platform] || ""
   const language = languageNames[project.language] || project.language
@@ -121,6 +125,11 @@ function buildPrompt(
 
   const bannedWordHint = project.bannedWords
     ? `\n注意：避免使用以下敏感词：${project.bannedWords}`
+    : ""
+
+  // 图片类内容共用同一份视觉事实，这是"同一商品不会是两个样子"的唯一保证
+  const lockBlock = visualLock
+    ? `\n【产品外观事实 — 必须严格遵守】\n${visualLock}\n\n你在 prompt 里描述的产品必须与上面完全一致：颜色不得修改、形态比例不得修改、列出的部件必须全部出现。你只能改变镜头角度、光线、背景和陪衬物。`
     : ""
 
   const contentTypePrompts: Record<string, { system: string; user: string }> = {
@@ -193,6 +202,7 @@ ${bannedWordHint}
       system: `你是一位专业的电商视觉设计师。根据提供的产品信息，生成用于AI图片生成的提示词（Prompt）。
 要求：
 - 描述产品主图的构图、光线、风格和氛围
+${lockBlock}
 - 视觉风格参考：${project.visualStyle || "minimal"}
 - 适合用于Midjourney/Stable Diffusion等图片生成工具
 - 语言：English（图片生成Prompt通常用英文效果更好）
@@ -203,6 +213,7 @@ ${bannedWordHint}
       system: `你是一位专业的电商视觉设计师。根据提供的产品信息，生成用于AI图片生成的场景营销图提示词（Prompt）。
 要求：
 - 描述产品的使用场景、环境和氛围
+${lockBlock}
 - 视觉风格参考：${project.visualStyle || "minimal"}
 - 适合用于Midjourney/Stable Diffusion等图片生成工具
 - 语言：English（图片生成Prompt通常用英文效果更好）
@@ -213,6 +224,7 @@ ${bannedWordHint}
       system: `你是一位专业的电商视觉设计师。根据提供的产品信息，生成用于AI图片生成的Banner图提示词（Prompt）。
 要求：
 - 描述Banner图的布局、文案位置、色彩和风格
+${lockBlock}
 - 适合用于电商平台首页/活动页
 - 视觉风格参考：${project.visualStyle || "minimal"}
 - 语言：English
@@ -223,6 +235,7 @@ ${bannedWordHint}
       system: `你是一位专业的社交媒体视觉设计师。根据提供的产品信息，生成用于AI图片生成的社交媒体配图提示词（Prompt）。
 要求：
 - 描述社媒图的生活化场景、氛围和风格
+${lockBlock}
 - 适合Instagram/TikTok/Pinterest等平台
 - 视觉风格参考：${project.visualStyle || "minimal"}
 - 语言：English
@@ -233,6 +246,7 @@ ${bannedWordHint}
       system: `你是一位专业的促销视觉设计师。根据提供的产品信息，生成用于AI图片生成的促销海报提示词（Prompt）。
 要求：
 - 描述促销海报的视觉冲击力、促销信息和氛围
+${lockBlock}
 - 包含促销感和紧迫感
 - 视觉风格参考：${project.visualStyle || "minimal"}
 - 语言：English
@@ -259,6 +273,8 @@ ${bannedWordHint}
     }
   )
 }
+
+const VISUAL_CONTENT_TYPES = ["mainImage", "sceneImage", "banner", "socialMediaImage", "promoPoster"]
 
 export async function POST(req: Request) {
   const session = await auth()
@@ -311,38 +327,36 @@ export async function POST(req: Request) {
 
     let content: string
 
-    // Resolve API key: user-configured > environment variable
-    let apiKey: string | undefined
+    // 密钥解析：用户自带 > 环境变量；模型与接口统一走 ai-config
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { apiKey: true, imageApiKey: true },
     })
-    if (user?.apiKey) {
-      apiKey = user.apiKey
-    }
-    if (!apiKey) {
-      apiKey = process.env.DEEPSEEK_API_KEY
-    }
+    const llm = await createLlmClient(user?.apiKey)
 
     // Try real AI API first, fall back to mock
-    if (apiKey) {
+    if (llm) {
       try {
-        const { default: OpenAI } = await import("openai")
-        const openai = new OpenAI({
-          apiKey,
-          baseURL: "https://api.deepseek.com",
-        })
+        // 图片类：先把产品外观定成事实并落库，五个类型共用同一份
+        let visualLock: string | undefined
+        if (VISUAL_CONTENT_TYPES.includes(contentType)) {
+          const spec = await ensureVisualSpec(project, llm, (id, json) =>
+            prisma.productProject.update({ where: { id }, data: { visualSpec: json } })
+          )
+          if (spec) visualLock = visualLockText(spec)
+        }
 
-        const { system, user } = buildPrompt(project, contentType)
+        const { system, user: userMessage } = buildPrompt(project, contentType, visualLock)
 
-        const response = await openai.chat.completions.create({
-          model: "deepseek-chat",
+        const response = await (llm.client.chat.completions.create as any)({
+          model: llm.cfg.model,
           messages: [
             { role: "system", content: system },
-            { role: "user", content: user },
+            { role: "user", content: userMessage },
           ],
           temperature: 0.7,
           max_tokens: 2000,
+          ...llmExtraBody(llm.cfg),
         })
 
         content = response.choices[0]?.message?.content || ""
@@ -361,33 +375,40 @@ export async function POST(req: Request) {
         : `已生成${contentTypeLabels[contentType] || contentType}内容`
     }
 
-    // For image content types, generate image via aipaiai.cn Images API
+    // 图片类内容：模型与接口走 ai-config，失败不再静默
     const imageContentTypes = ["mainImage", "sceneImage", "banner", "socialMediaImage", "promoPoster"]
     let imageUrl: string | null = null
-    const imageApiKey = user?.imageApiKey || process.env.OPENAI_API_KEY
-    if (
-      imageContentTypes.includes(contentType) &&
-      imageApiKey
-    ) {
-      try {
-        const { default: OpenAI } = await import("openai")
-        const oa = new OpenAI({
-          apiKey: imageApiKey,
-          baseURL: "https://aipaiai.cn/v1",
-        })
-        const imgRes = await oa.images.generate({
-          model: "gpt-image-2",
-          prompt: content,
-          n: 1,
-          size: "1024x1024",
-          response_format: "b64_json",
-        })
-        const b64 = imgRes.data?.[0]?.b64_json
-        if (b64) {
-          imageUrl = `data:image/png;base64,${b64}`
+    let imageError: string | null = null
+    if (imageContentTypes.includes(contentType)) {
+      const img = await createImageClient(user?.imageApiKey)
+      if (!img) {
+        imageError = "未配置图片服务密钥"
+      } else {
+        try {
+          const imgRes = await (img.client.images.generate as any)(
+            {
+              model: img.cfg.model,
+              prompt: content,
+              n: 1,
+              size: img.cfg.size,
+              ...(img.cfg.sendResponseFormat ? { response_format: "b64_json" } : {}),
+            },
+            // 硅基流动只认这个请求头关水印，body 里的 watermark 字段无效
+            { headers: imageRequestHeaders(img.cfg) }
+          )
+          const first = imgRes?.data?.[0]
+          if (first?.b64_json) {
+            // 落盘，库里只存路径，避免每条记录塞 1~2MB base64
+            imageUrl = await saveBase64Image(first.b64_json)
+          } else if (first?.url) {
+            imageUrl = await saveRemoteImage(first.url)
+          } else {
+            imageError = "图片服务未返回图片数据"
+          }
+        } catch (e) {
+          console.error("图片生成失败:", e)
+          imageError = e instanceof Error ? e.message.slice(0, 200) : "图片生成失败"
         }
-      } catch (e) {
-        console.error("图片生成失败:", e)
       }
     }
 
@@ -401,7 +422,7 @@ export async function POST(req: Request) {
       },
     })
 
-    return NextResponse.json({ record })
+    return NextResponse.json({ record, imageError })
   } catch (err) {
     console.error("[Generate]", err)
     return NextResponse.json({ error: "生成失败" }, { status: 500 })

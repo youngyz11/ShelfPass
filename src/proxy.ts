@@ -34,6 +34,7 @@ export const config = {
     "/history/:path*",
     "/api/projects/:path*",
     "/api/generate/:path*",
+    "/api/upload/:path*",
     "/api/records/:path*",
     "/api/user/:path*",
     "/api/analysis/:path*",

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/db/prisma"
 import { checkMonthlyQuota } from "@/lib/quota"
+import { createLlmClient, llmExtraBody } from "@/lib/ai-config"
 
 const CALC_SYSTEM_PROMPT = `你是一个专业的跨境电商税务顾问。每次回答前，必须使用联网搜索功能查询最新的官方税率，禁止使用过时数据或凭空编造。
 
@@ -78,31 +79,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "请填写完整信息" }, { status: 400 })
     }
 
-    // Resolve API key
-    let apiKey: string | undefined
+    // 密钥解析：用户自带优先，其次环境变量；模型与接口走 ai-config
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { apiKey: true },
     })
-    if (user?.apiKey) apiKey = user.apiKey
-    if (!apiKey) apiKey = process.env.DEEPSEEK_API_KEY
-    if (!apiKey) {
+    const llm = await createLlmClient(user?.apiKey)
+    if (!llm) {
       return NextResponse.json({ error: "未配置 API Key，请在设置中配置" }, { status: 400 })
     }
+    const { client: openai, cfg: llmCfg } = llm
 
-    const { default: OpenAI } = await import("openai")
-    const openai = new OpenAI({ apiKey, baseURL: "https://api.deepseek.com" })
-
-    // Step 1: Tax calculation with web search
+    // Step 1: Tax calculation with web search（enable_search 仅 DeepSeek 系支持）
     const calcInput = `${productName} HS ${hsCode || "未提供"} 出口${destinationCountry} ${shippingMode} ${quantity}件 单价${unitPrice}元 重量${weight}kg`
     const calcRes = await (openai.chat.completions.create as any)({
-      model: "deepseek-chat",
+      model: llmCfg.model,
       messages: [
         { role: "system", content: CALC_SYSTEM_PROMPT },
         { role: "user", content: calcInput },
       ],
       temperature: 0.3,
-      extra_body: { enable_search: true },
+      ...llmExtraBody(llmCfg),
     })
 
     const rawCalc = calcRes.choices[0]?.message?.content || ""
@@ -120,13 +117,14 @@ export async function POST(req: Request) {
     }
 
     // Step 2: Strategy report
-    const reportRes = await openai.chat.completions.create({
-      model: "deepseek-chat",
+    const reportRes = await (openai.chat.completions.create as any)({
+      model: llmCfg.model,
       messages: [
         { role: "system", content: REPORT_SYSTEM_PROMPT },
         { role: "user", content: JSON.stringify(calcData, null, 2) },
       ],
       temperature: 0.7,
+      ...llmExtraBody(llmCfg),
     })
 
     const report = reportRes.choices[0]?.message?.content || ""
