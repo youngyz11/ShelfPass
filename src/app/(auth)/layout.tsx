@@ -25,7 +25,7 @@ export default function AuthLayout({
           <Sparkles className="size-5" />
         </div>
         <span className="text-xl font-bold tracking-tight">
-          AI<span className="text-primary">跨境通</span>
+          Shelf<span className="text-primary">Pass</span>
         </span>
       </Link>
 

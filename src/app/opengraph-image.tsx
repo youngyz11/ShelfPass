@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og"
 
 // 社交分享卡片（微信/Twitter/LinkedIn 等分享时显示的预览图）
-export const alt = "AI跨境通 - AI跨境电商文案与营销图片生成助手"
+export const alt = "ShelfPass - AI跨境电商文案与营销图片生成助手"
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
@@ -47,7 +47,7 @@ export default function Image() {
               }}
             />
           </div>
-          <div style={{ fontSize: "40px", fontWeight: 700 }}>AI跨境通</div>
+          <div style={{ fontSize: "40px", fontWeight: 700 }}>ShelfPass</div>
         </div>
 
         {/* 主标题 */}

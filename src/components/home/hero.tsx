@@ -58,7 +58,7 @@ export function Hero() {
                   <div className="size-2.5 rounded-full bg-amber-400/70" />
                   <div className="size-2.5 rounded-full bg-emerald-400/70" />
                 </div>
-                <span className="text-[10px] text-muted-foreground/50 font-medium">AI 跨境通 — 内容生成</span>
+                <span className="text-[10px] text-muted-foreground/50 font-medium">ShelfPass — 内容生成</span>
                 <div />
               </div>
 

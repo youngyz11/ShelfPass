@@ -55,7 +55,7 @@ export function DashboardHeader() {
               <Sparkles className="size-3" />
             </div>
             <span className="text-sm font-bold">
-              AI<span className="text-primary">跨境通</span>
+              Shelf<span className="text-primary">Pass</span>
             </span>
           </Link>
         </div>

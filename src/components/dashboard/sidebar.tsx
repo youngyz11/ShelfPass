@@ -156,14 +156,14 @@ export function DashboardSidebar({ isAdmin = false }: { isAdmin?: boolean }) {
             isCollapsed ? "justify-center px-2" : "px-6"
           )}
           onClick={close}
-          title={isCollapsed ? "AI 跨境通" : undefined}
+          title={isCollapsed ? "ShelfPass" : undefined}
         >
           <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm shrink-0">
             <Sparkles className="size-3.5" />
           </div>
           {!isCollapsed && (
             <span className="text-sm font-bold">
-              AI<span className="text-primary">跨境通</span>
+              Shelf<span className="text-primary">Pass</span>
             </span>
           )}
         </Link>

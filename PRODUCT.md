@@ -10,7 +10,7 @@ Chinese cross-border e-commerce sellers and brand owners who need to create prod
 
 ## Product Purpose
 
-AI跨境通 (AI Cross-border E-commerce Assistant) generates multi-platform product copy and marketing images from a single product brief. It supports Chinese/English/Spanish (plus German, French, Japanese, Portuguese, Arabic) and helps Chinese brands expand overseas efficiently. Success means a seller can input product details once and get platform-optimized listings across Amazon, Shopify, TikTok Shop and more.
+ShelfPass (AI Cross-border E-commerce Assistant) generates multi-platform product copy and marketing images from a single product brief. It supports Chinese/English/Spanish (plus German, French, Japanese, Portuguese, Arabic) and helps Chinese brands expand overseas efficiently. Success means a seller can input product details once and get platform-optimized listings across Amazon, Shopify, TikTok Shop and more.
 
 ## Brand Personality
 

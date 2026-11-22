@@ -19,15 +19,15 @@ const notoSansSC = Noto_Sans_SC({
 })
 
 const siteUrl = "https://www.ai-cea.com"
-const siteName = "AI跨境通"
+const siteName = "ShelfPass"
 const siteDescription =
   "一站式生成亚马逊、Shopify、TikTok Shop多平台商品文案与营销图片，支持中/英/西三语，助力中国品牌高效出海。"
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "AI跨境通 - AI跨境电商文案与营销图片生成助手",
-    template: "%s | AI跨境通",
+    default: "ShelfPass - AI跨境电商文案与营销图片生成助手",
+    template: "%s | ShelfPass",
   },
   description: siteDescription,
   keywords: [
@@ -44,9 +44,9 @@ export const metadata: Metadata = {
     "AI营销",
     "出海工具",
   ],
-  authors: [{ name: "AI跨境通" }],
-  creator: "AI跨境通",
-  publisher: "AI跨境通",
+  authors: [{ name: "ShelfPass" }],
+  creator: "ShelfPass",
+  publisher: "ShelfPass",
   applicationName: siteName,
   alternates: {
     canonical: "/",
@@ -56,12 +56,12 @@ export const metadata: Metadata = {
     locale: "zh_CN",
     url: siteUrl,
     siteName,
-    title: "AI跨境通 - AI跨境电商文案与营销图片生成助手",
+    title: "ShelfPass - AI跨境电商文案与营销图片生成助手",
     description: siteDescription,
   },
   twitter: {
     card: "summary_large_image",
-    title: "AI跨境通 - AI跨境电商文案与营销图片生成助手",
+    title: "ShelfPass - AI跨境电商文案与营销图片生成助手",
     description: siteDescription,
   },
   robots: {

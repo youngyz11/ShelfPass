@@ -27,7 +27,7 @@ export function Navbar() {
             <Sparkles className="size-4" />
           </div>
           <span className="text-lg font-bold tracking-tight">
-            AI<span className="text-primary">跨境通</span>
+            Shelf<span className="text-primary">Pass</span>
           </span>
         </Link>
 

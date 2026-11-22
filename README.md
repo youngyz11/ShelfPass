@@ -1,6 +1,6 @@
 <div align="center">
 
-# AI 跨境通 · AI Cross-border E-commerce Assistant
+# ShelfPass · AI Cross-border E-commerce Assistant
 
 **一站式 AI 内容引擎，让中国卖家高效出海**
 

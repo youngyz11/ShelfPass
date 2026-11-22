@@ -37,7 +37,7 @@ export function Footer() {
                 <Sparkles className="size-4" />
               </div>
               <span className="text-base font-bold">
-                AI<span className="text-primary">跨境通</span>
+                Shelf<span className="text-primary">Pass</span>
               </span>
             </Link>
             <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
@@ -68,7 +68,7 @@ export function Footer() {
 
         <div className="mt-12 border-t border-border/20 pt-8">
           <p className="text-center text-sm text-muted-foreground/60">
-            &copy; {new Date().getFullYear()} AI跨境通. All rights reserved.
+            &copy; {new Date().getFullYear()} ShelfPass. All rights reserved.
           </p>
         </div>
       </div>
