@@ -7,7 +7,7 @@
 为跨境电商卖家自动生成多平台商品文案与营销内容
 覆盖 Amazon · Shopify · TikTok Shop，支持中英西等 8 种语言
 
-[English](#english) · [在线体验 Live Demo](https://ai-cea.com) · [反馈问题](https://github.com/p-j-jx/Nono/issues)
+[English](#english) · [在线体验 Live Demo](https://ai-cea.com) · [反馈问题](https://github.com/youngyz11/ShelfPass/issues)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
@@ -88,7 +88,7 @@ Amazon Flat File TSV、Shopify CSV、通用 TXT 一键导出。带 BOM 兼容 Ex
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/p-j-jx/Nono.git
+git clone https://github.com/youngyz11/ShelfPass.git
 cd Nono
 
 # 2. 安装依赖
@@ -127,7 +127,7 @@ npm run dev
 
 ### Vercel 一键部署（推荐）
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/p-j-jx/Nono)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/youngyz11/ShelfPass)
 
 1. 点上方按钮 fork 仓库到你的 Vercel 账户
 2. 在 Vercel Dashboard → Settings → Environment Variables 中配置必备变量
@@ -210,7 +210,7 @@ prisma/
 ### Quick Start
 
 ```bash
-git clone https://github.com/p-j-jx/Nono.git
+git clone https://github.com/youngyz11/ShelfPass.git
 cd Nono
 npm install
 cp .env.example .env  # Fill in AUTH_SECRET and DEEPSEEK_API_KEY at minimum
